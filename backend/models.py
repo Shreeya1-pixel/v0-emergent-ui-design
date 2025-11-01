@@ -81,3 +81,25 @@ class DesignRequest(BaseModel):
     prompt: str
     design_type: str
     user_api_key: Optional[str] = None
+
+class Agent(BaseModel):
+    agent_id: str
+    role: str  # CEO, Engineer, Designer, Marketer
+    personality: str
+
+class AgentMessage(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    session_id: str
+    agent_id: str
+    role: str  # CEO, Engineer, Designer, Marketer
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+    to_agent_id: Optional[str] = None  # For message passing
+    meta: Optional[dict] = None  # Any extra context
+
+class AgentMemory(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    session_id: str
+    agent_id: str
+    log: List[AgentMessage] = []
+    updated_at: datetime = Field(default_factory=datetime.now)

@@ -113,4 +113,33 @@ Respond in JSON format with monthly data.
         except Exception as e:
             raise Exception(f"Design Generation Error: {str(e)}")
 
+    async def agent_chat(
+        self,
+        agent_role: str,
+        agent_personality: str,
+        task: str,
+        memory_log: str = "",
+        user_api_key: Optional[str] = None,
+        context: Optional[str] = None,
+    ) -> str:
+        """Generate agent-specific response using provided personality and context."""
+        try:
+            client = self.get_client(user_api_key)
+            system_prompt = (
+                f"You are {agent_role}, one of several collaborating AI startup team experts. Your personality: {agent_personality}. "
+                f"The task: {task}. "
+                f"Here is your memory buffer (recent log): {memory_log}. "
+            )
+            if context:
+                system_prompt += f"Context from teammates: {context}. "
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": system_prompt}],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            raise Exception(f"Agent LLM Error: {str(e)}")
+
 ai_service = AIService()

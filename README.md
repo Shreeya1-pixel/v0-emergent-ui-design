@@ -1,30 +1,31 @@
-# Emergent++ UI Design
+# EmergentX: The AI Co-Founder Workspace
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+EmergentX is an agentic AI ecosystem that simulates an entire startup team inside your browser. Users interact with a team of intelligent agents—a CEO, Engineer, Designer, and Marketer—that collaborate in real-time to turn a single prompt into a fully realized startup concept, complete with a strategy and brand identity.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/shreeya1-pixels-projects/v0-emergent-ui-design)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/gjTCHtP5rRN)
+## Project Structure
 
-## Overview
+The project is a monorepo containing both the frontend and backend applications.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+-   `/app`: The Next.js frontend application, creating the user interface.
+-   `/components`: Shared React components for the frontend.
+-   `/public`: Static assets like images and videos for the frontend.
+-   `/backend`: A Python FastAPI server that powers the multi-agent AI logic.
+    -   `/backend/services`: Contains all the core services for AI, memory, and agent orchestration.
 
-## Deployment
+## How It Works & API Key Integration
 
-Your project is live at:
+The backend powers a multi-agent pipeline where each AI agent (CEO, Engineer, etc.) has a unique personality and persistent memory. When a user sends a prompt, it's routed through this pipeline, with each agent building upon the previous one's work.
 
-**[https://vercel.com/shreeya1-pixels-projects/v0-emergent-ui-design](https://vercel.com/shreeya1-pixels-projects/v0-emergent-ui-design)**
+This entire system relies on the OpenAI API. To run the application, you must provide an API key.
 
-## Build your app
+### Environment Setup (`.env` file)
 
-Continue building your app on:
+1.  Navigate to the `/backend` directory.
+2.  Create a file named `.env`.
+3.  Add your OpenAI API key to this file as follows:
 
-**[https://v0.app/chat/projects/gjTCHtP5rRN](https://v0.app/chat/projects/gjTCHtP5rRN)**
+```
+OPENAI_API_KEY=sk-YourSecretApiKeyHere
+```
 
-## How It Works
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+The application uses the `openai` library to make calls to GPT-4o. It does not use LangChain. The key in your `.env` file is all that's needed to power the AI features.

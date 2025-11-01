@@ -53,3 +53,28 @@ class MemoryService:
         return result.deleted_count > 0
 
 memory_service = MemoryService()
+
+class AgentMemoryService:
+    def __init__(self):
+        mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+        db_name = os.getenv("DATABASE_NAME", "emergent_plus")
+        self.client = MongoClient(mongo_url)
+        self.db = self.client[db_name]
+        self.collection = self.db["agent_memories"]
+
+    async def append_message(self, session_id: str, agent_id: str, message: dict) -> bool:
+        """Append an agent message to the log."""
+        result = self.collection.update_one(
+            {"session_id": session_id, "agent_id": agent_id},
+            {"$push": {"log": message}, "$set": {"updated_at": datetime.now()}},
+            upsert=True,
+        )
+        return result.modified_count > 0 or result.upserted_id is not None
+
+    async def get_memory_log(self, session_id: str, agent_id: str, limit: int = 10) -> list:
+        entry = self.collection.find_one({"session_id": session_id, "agent_id": agent_id})
+        if entry and "log" in entry:
+            return entry["log"][-limit:]
+        return []
+
+agent_memory_service = AgentMemoryService()

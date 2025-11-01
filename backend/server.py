@@ -8,9 +8,10 @@ from models import (
     SimulateRequest, DesignRequest, Message, Memory, Startup, Design
 )
 from services.ai_service import ai_service
-from services.memory_service import memory_service
+from services.memory_service import memory_service, agent_memory_service
 from services.startup_service import startup_service
 from services.canvas_service import design_service, conversation_service
+from models import AgentMessage
 
 # Load environment variables
 load_dotenv()
@@ -277,6 +278,101 @@ async def get_session_summary(session_id: str):
                 "designs": designs[:5]  # Latest 5
             }
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Define the personalities for the four agents
+AGENT_PERSONALITIES = {
+    "ceo": "Visionary, strategic, persuasive, holistic thinker. Sees the big picture and synthesizes team output into an actionable summary.",
+    "engineer": "Analytical, detail-oriented, practical. Breaks down visions into technical solutions, always thinking about robust implementation.",
+    "designer": "Creative, user-centric, visual thinker. Refines ideas for clarity, communicates through visuals, and ensures a compelling aesthetic.",
+    "marketer": "Persuasive, audience-aware, energetic. Focuses on messaging impact, clarity, brand, and engaging presentation.",
+}
+
+# Orchestrator for multi-agent pipeline
+async def multi_agent_pipeline(user_message: str, session_id: str, user_api_key: str = None):
+    trace = []
+
+    # --- CEO (interprets and delegates to Engineer) ---
+    ceo_log = await agent_memory_service.get_memory_log(session_id, "ceo")
+    ceo_context = "\n".join([msg['content'] for msg in ceo_log])
+    ceo_out = await ai_service.agent_chat(
+        agent_role="CEO",
+        agent_personality=AGENT_PERSONALITIES["ceo"],
+        task=user_message,
+        memory_log=ceo_context,
+        user_api_key=user_api_key,
+    )
+    ceo_msg = AgentMessage(session_id=session_id, agent_id="ceo", role="CEO", content=ceo_out)
+    await agent_memory_service.append_message(session_id, "ceo", ceo_msg.model_dump())
+    trace.append({"agent": "CEO", "message": ceo_out})
+
+    # --- Engineer (gets CEO output as task) ---
+    eng_log = await agent_memory_service.get_memory_log(session_id, "engineer")
+    eng_context = "\n".join([msg['content'] for msg in eng_log])
+    eng_out = await ai_service.agent_chat(
+        agent_role="Engineer",
+        agent_personality=AGENT_PERSONALITIES["engineer"],
+        task=ceo_out,
+        memory_log=eng_context,
+        user_api_key=user_api_key,
+    )
+    eng_msg = AgentMessage(session_id=session_id, agent_id="engineer", role="Engineer", content=eng_out)
+    await agent_memory_service.append_message(session_id, "engineer", eng_msg.model_dump())
+    trace.append({"agent": "Engineer", "message": eng_out})
+
+    # --- Designer (refines Engineer's output) ---
+    designer_log = await agent_memory_service.get_memory_log(session_id, "designer")
+    designer_context = "\n".join([msg['content'] for msg in designer_log])
+    designer_out = await ai_service.agent_chat(
+        agent_role="Designer",
+        agent_personality=AGENT_PERSONALITIES["designer"],
+        task=eng_out,
+        memory_log=designer_context,
+        user_api_key=user_api_key,
+    )
+    designer_msg = AgentMessage(session_id=session_id, agent_id="designer", role="Designer", content=designer_out)
+    await agent_memory_service.append_message(session_id, "designer", designer_msg.model_dump())
+    trace.append({"agent": "Designer", "message": designer_out})
+
+    # --- Marketer (polishes Designer output) ---
+    marketer_log = await agent_memory_service.get_memory_log(session_id, "marketer")
+    marketer_context = "\n".join([msg['content'] for msg in marketer_log])
+    marketer_out = await ai_service.agent_chat(
+        agent_role="Marketer",
+        agent_personality=AGENT_PERSONALITIES["marketer"],
+        task=designer_out,
+        memory_log=marketer_context,
+        user_api_key=user_api_key,
+    )
+    marketer_msg = AgentMessage(session_id=session_id, agent_id="marketer", role="Marketer", content=marketer_out)
+    await agent_memory_service.append_message(session_id, "marketer", marketer_msg.model_dump())
+    trace.append({"agent": "Marketer", "message": marketer_out})
+
+    # --- CEO (summarizes/presents final result) ---
+    ceo_final_out = await ai_service.agent_chat(
+        agent_role="CEO",
+        agent_personality=AGENT_PERSONALITIES["ceo"],
+        task=marketer_out,
+        memory_log=ceo_context,
+        user_api_key=user_api_key,
+        context=marketer_out
+    )
+    ceo_final_msg = AgentMessage(session_id=session_id, agent_id="ceo", role="CEO", content=ceo_final_out)
+    await agent_memory_service.append_message(session_id, "ceo", ceo_final_msg.model_dump())
+    trace.append({"agent": "CEO", "message": ceo_final_out})
+
+    return {"trace": trace, "result": ceo_final_out}
+
+@app.post("/api/agent-collab")
+async def agent_collaboration(request: dict):
+    """Multi-agent collaboration: user prompt is routed through CEO → Engineer → Designer → Marketer → CEO sequence"""
+    try:
+        user_message = request["prompt"]
+        session_id = request["session_id"]
+        user_api_key = request.get("user_api_key")
+        pipeline_output = await multi_agent_pipeline(user_message, session_id, user_api_key)
+        return pipeline_output
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
